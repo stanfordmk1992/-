@@ -1,0 +1,341 @@
+<!doctype html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<style>:root{padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}body{margin:0}[hidden]{display:none!important}</style>
+<title>Project Workflow 工作流程</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&family=JetBrains+Mono:wght@500;700&display=swap">
+<style>
+/* 版面概念：變更請求（CR）工單。一張 CR 依序蓋過每個節點的章，三層各有自己的印泥色 */
+:root {
+  /* 色彩 */
+  --bg: #EEF1F3; --surface: #FFFFFF; --ink: #18222D; --muted: #586674; --rule: #CDD5DC;
+  --l1: #1E7457; --l2: #A86A12; --l3: #A8412F; --hot: #C0262D; --soft: #E3E8EC;
+  /* 字體 */
+  --font-heading: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --font-body: "Noto Sans TC", "PingFang TC", "Microsoft JhengHei", sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, Menlo, monospace;
+  /* 間距 */
+  --space-1: 4px; --space-2: 8px; --space-3: 16px; --space-4: 24px; --space-5: 40px;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0F151B; --surface: #161F27; --ink: #E4EAEF; --muted: #95A3B0; --rule: #2A3743;
+  --l1: #4FC39A; --l2: #E6A848; --l3: #EE7D69; --hot: #FF6B6B; --soft: #1E2A34; color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0F151B; --surface: #161F27; --ink: #E4EAEF; --muted: #95A3B0; --rule: #2A3743;
+  --l1: #4FC39A; --l2: #E6A848; --l3: #EE7D69; --hot: #FF6B6B; --soft: #1E2A34; color-scheme: dark; }
+
+body { background: var(--bg); color: var(--ink); font-family: var(--font-body); font-size: 16px; line-height: 1.75; }
+.wrap { max-width: 1100px; margin: 0 auto; padding-block: var(--space-5);
+  padding-left: max(16px, env(safe-area-inset-left, 0px)); padding-right: max(16px, env(safe-area-inset-right, 0px));
+  display: grid; gap: var(--space-4); }
+
+/* 抬頭：做成 CR 工單的表頭 */
+.ticket { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; display: grid; grid-template-columns: 1fr auto; position: relative; }
+.ticket::after { content: ""; position: absolute; top: 12px; bottom: 12px; right: 210px; border-left: 2px dashed var(--rule); }
+.ticket-main { padding: var(--space-4); display: grid; gap: var(--space-2); min-width: 0; }
+.ticket-side { box-sizing: border-box; width: 210px; padding: var(--space-4); display: grid; gap: var(--space-1); align-content: center; font-family: var(--font-mono); font-size: 12px; color: var(--muted); }
+.ticket-side b { color: var(--ink); font-size: 14px; }
+.eyebrow { font: 500 12px var(--font-mono); letter-spacing: .1em; color: var(--muted); }
+h1 { font-family: var(--font-heading); font-weight: 900; font-size: clamp(30px, 5.5vw, 48px); line-height: 1.15; margin: 0; text-wrap: balance; }
+.lede { margin: 0; max-width: 64ch; color: var(--muted); }
+@media (max-width: 640px) { .ticket { grid-template-columns: 1fr; } .ticket::after { display: none; } .ticket-side { width: auto; border-top: 2px dashed var(--rule); } }
+
+/* 元件：分頁按鈕（renderTab 唯一定義） */
+.tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.tab { font: 500 15px/1 var(--font-body); color: var(--ink); background: var(--surface); border: 1px solid var(--rule); border-radius: 3px;
+  padding: 11px 14px; cursor: pointer; display: inline-flex; gap: var(--space-2); align-items: center; transition: border-color .15s, box-shadow .15s; }
+.tab small { font: 500 11px var(--font-mono); color: var(--muted); }
+.tab:hover { border-color: var(--ink); }
+.tab[aria-selected="true"] { border-color: var(--ink); box-shadow: inset 0 -3px 0 var(--ink); font-weight: 700; }
+.tab:focus-visible, .chip:focus-visible, svg .node:focus-visible { outline: 3px solid var(--l2); outline-offset: 2px; }
+
+.panel { display: grid; gap: var(--space-4); animation: rise .25s ease-out; }
+@keyframes rise { from { opacity: .4; transform: translateY(6px); } to { opacity: 1; transform: none; } }
+@media (prefers-reduced-motion: reduce) { .panel { animation: none; } }
+h2 { font-family: var(--font-heading); font-weight: 900; font-size: clamp(22px, 3.6vw, 30px); margin: 0; line-height: 1.25; }
+h3 { font-family: var(--font-heading); font-size: 17px; font-weight: 700; margin: 0 0 var(--space-2); }
+.intro { margin: 0; color: var(--muted); max-width: 70ch; }
+.figure { margin: 0; background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: var(--space-3); overflow-x: auto; }
+.figure svg { display: block; width: 100%; height: auto; }
+.caption { font: 500 12px var(--font-mono); color: var(--muted); margin-top: var(--space-2); }
+.cols { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: var(--space-4); }
+.cols > * { min-width: 0; }
+
+/* 統計列 */
+.stats { display: grid; grid-template-columns: repeat(auto-fit, minmax(130px, 1fr)); gap: 1px; background: var(--rule); border: 1px solid var(--rule); border-radius: 4px; overflow: hidden; }
+.stat { background: var(--surface); padding: var(--space-3); display: grid; gap: 2px; }
+.stat b { font: 700 26px var(--font-mono); font-variant-numeric: tabular-nums; }
+.stat span { font-size: 13px; color: var(--muted); }
+
+/* 元件：清單 */
+ol.steps { margin: 0; padding: 0; list-style: none; counter-reset: s; display: grid; gap: var(--space-2); }
+ol.steps li { counter-increment: s; display: grid; grid-template-columns: 30px 1fr; gap: var(--space-2); }
+ol.steps li::before { content: counter(s); font: 700 12px/26px var(--font-mono); text-align: center; height: 26px; border: 2px solid var(--c, var(--ink)); color: var(--c, var(--ink)); border-radius: 3px; margin-top: 2px; }
+ul.ticks { margin: 0; padding: 0; list-style: none; display: grid; gap: 6px; }
+ul.ticks li { display: grid; grid-template-columns: 18px 1fr; gap: var(--space-2); }
+ul.ticks li::before { content: ""; width: 11px; height: 11px; margin-top: 8px; border: 2px solid var(--c, var(--ink)); border-radius: 2px; }
+code, .mono { font-family: var(--font-mono); font-size: .88em; }
+
+/* 元件：選擇鈕（節點、角色共用） */
+.chips { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.chip { font: 500 14px/1 var(--font-body); background: var(--surface); color: var(--ink); border: 1px solid var(--rule); border-left: 4px solid var(--c, var(--ink));
+  border-radius: 3px; padding: 9px 12px; cursor: pointer; }
+.chip[aria-pressed="true"] { background: var(--soft); border-color: var(--c, var(--ink)); font-weight: 700; }
+
+/* 詳情卡：模擬蓋章 */
+.detail { background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; padding: var(--space-4); display: grid; gap: var(--space-3); position: relative; }
+.stamp { position: absolute; top: var(--space-3); right: var(--space-3); font: 700 12px var(--font-mono); color: var(--c); border: 2px solid var(--c); border-radius: 3px; padding: 2px 8px; transform: rotate(-4deg); }
+.detail h3 { font-size: 22px; font-weight: 900; padding-right: 110px; }
+.roles { display: flex; flex-wrap: wrap; gap: 6px; }
+.role { font: 700 12px var(--font-mono); padding: 3px 8px; border-radius: 3px; border: 1px solid var(--ink); }
+.role.sup { border-style: dashed; color: var(--muted); border-color: var(--muted); font-weight: 500; }
+.note { border-left: 4px solid var(--c, var(--ink)); background: var(--surface); padding: var(--space-2) var(--space-3); }
+
+/* 角色矩陣 */
+.table-wrap { overflow-x: auto; background: var(--surface); border: 1px solid var(--rule); border-radius: 4px; }
+table { border-collapse: collapse; width: 100%; font-size: 14px; }
+th, td { padding: 8px 10px; border-bottom: 1px solid var(--rule); text-align: center; white-space: nowrap; }
+th { font: 500 12px var(--font-mono); color: var(--muted); }
+td:first-child, th:first-child { text-align: left; position: sticky; left: 0; background: var(--surface); }
+tbody tr { cursor: pointer; }
+tbody tr:hover td, tbody tr.on td { background: var(--soft); }
+.dot { display: inline-block; width: 12px; height: 12px; border-radius: 50%; background: var(--c); }
+.colhead-1 { color: var(--l1); } .colhead-2 { color: var(--l2); } .colhead-3 { color: var(--l3); } .colhead-x { color: var(--muted); }
+
+/* SVG 共用：顏色全部取自 token */
+svg text { font-family: var(--font-body); fill: var(--ink); font-size: 14px; }
+svg .sm { font-size: 12px; fill: var(--muted); }
+svg .mono { font-family: var(--font-mono); font-size: 12px; fill: var(--muted); }
+svg .b { font-weight: 700; }
+svg .box { fill: var(--surface); stroke: var(--rule); stroke-width: 2; }
+svg .band { stroke: none; }
+svg .arrow { fill: none; stroke: var(--muted); stroke-width: 2; }
+svg .ah { fill: var(--muted); }
+svg .node { cursor: pointer; }
+svg .node rect { fill: var(--surface); stroke-width: 2.5; }
+svg .node.on rect { fill: var(--soft); stroke-width: 4; }
+.s1 { stroke: var(--l1); } .s2 { stroke: var(--l2); } .s3 { stroke: var(--l3); } .sh { stroke: var(--hot); } .si { stroke: var(--ink); }
+.f1 { fill: var(--l1); } .f2 { fill: var(--l2); } .f3 { fill: var(--l3); } .fh { fill: var(--hot); } .fi { fill: var(--ink); } .fs { fill: var(--soft); }
+footer { font: 500 12px var(--font-mono); color: var(--muted); border-top: 1px solid var(--rule); padding-top: var(--space-3); }
+</style>
+</head>
+<body>
+
+<div class="wrap">
+  <header class="ticket">
+    <div class="ticket-main">
+      <div class="eyebrow">PROJECT-WORKFLOW · v5.0.0 · 更新 2026-10-11</div>
+      <h1>Project Workflow 工作流程</h1>
+      <p class="lede">通用專案 SDLC 技能庫的運作方式。一張變更請求（CR）從提出到結案要走過哪些節點、每個角色在哪裡出手、技能怎麼被叫出來，以及技能庫本身怎麼維護。</p>
+    </div>
+    <div class="ticket-side"><span>三層結構</span><b>L1 → L2 → L3</b><span>單次讀取上限</span><b>≤ 2K token</b><span>唯一入口</span><b>變更請求 CR</b></div>
+  </header>
+  <nav class="tabs" role="tablist" id="tabs"></nav>
+  <main id="panel"></main>
+  <footer>資料來源：上傳的 project-workflow.zip（SKILL.md、L1-workflow.yaml、L1-chain.md、L2-roles/、L3-skills/s0、validate.mjs、tests/）・本頁只整理原文，沒有自行補充規則</footer>
+</div>
+
+<script>
+const defs = `<defs><marker id="ah" viewBox="0 0 10 10" refX="9" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" class="ah"/></marker></defs>`;
+
+/* ===== 資料：全部取自技能庫原文 ===== */
+const layerColor = { 1: "--l1", 2: "--l2", 3: "--l3" };
+const nodes = [
+  { id: "新需求", layer: 1, roles: ["OP","MK","PM"], sup: ["DE"], confirm: ["CR 已建立","目的 Why 已寫","場景 Where 已列","行為 What 已列且可追溯至 Why"], gate: "口頭或聊天需求要先轉成 CR 才排程", next: "待決策" },
+  { id: "待決策", layer: 1, roles: ["PM","PMO"], sup: ["DE"], confirm: ["未決問題已清零","必要性評分已完成","資源與時程已評估","是否需開發已決定"], gate: "每個問題都要有答案，或有負責人加日期。必要性評分 ≥75 分且需開發才進已定稿；不需開發則結案作廢，要記原因並通知提出者", next: "需開發 → 已定稿／不需開發 → 結案作廢" },
+  { id: "已定稿", layer: 1, roles: ["PM","PMO","BE","FE"], sup: ["DE","DO","SEC"], confirm: ["需求內容已凍結","測試用例已定稿","已排入版本與升級分支","埋點計畫已定","API 與資料結構已定","威脅建模已完成","資源評估已完成","排程已確認","交接已完成"], gate: "凍結後不能原地修改；要變更就開新 CR，或走 s033", next: "已開發-測試通過" },
+  { id: "已開發-測試通過", layer: 2, roles: ["FE","BE","QA","PMO"], sup: ["DO","SEC"], confirm: ["開發完成","埋點已實作","全功能點驗證 100% 通過","弱點掃描高風險為 0","障礙已排除"], gate: "功能點要 100% 通過，不抽樣。失敗就退回開發，節點不變（迴圈節點）", next: "測試 100% 通過 → 待驗收" },
+  { id: "待驗收", layer: 3, roles: ["PMO","PM","OP"], sup: ["MK"], confirm: ["驗收時程已排定","人工驗收已執行","GTM 準備已啟動"], gate: "原文未定義關卡。s013 記為流程缺口：驗收不通過應退回開發並記缺陷", next: "驗收通過" },
+  { id: "驗收通過", layer: 3, roles: ["PM","OP","PMO"], sup: ["MK","DO"], confirm: ["驗收無誤已確認","升級分支已鎖版並打版本 tag","FAQ 手冊內訓已完成"], gate: "版本號唯一；沒過關的 CR 移出，順延到下一版", next: "發布上線" },
+  { id: "發布上線", layer: 3, roles: ["PMO","BE","DO"], sup: ["OP","SEC"], confirm: ["上線時間與影響已評估","資安放行","自版本 tag 部署並合回 MASTER","回滾已就緒","上線公告與行銷已排程"], gate: "不直接部署 master/main；只有這個節點可以合併", next: "結案" },
+  { id: "結案", layer: 3, roles: [], sup: [], confirm: ["上線監控無異常","成效驗證已排程","剩餘項已轉新 CR"], gate: "終點。剩餘項轉成新 CR，回到新需求", next: "（終點）" },
+  { id: "結案作廢", layer: 1, roles: [], sup: [], confirm: [], gate: "終點。由待決策判定不需開發時進入", next: "（終點）" }
+];
+
+const roles = [
+  { code: "PM", name: "產品經理", nodes: ["新需求","待決策","已定稿","待驗收","驗收通過","上線後","緊急修復"], notOwns: "視覺→DE、實作→FE/BE、測試→QA、排程發布→PMO", stop: ["金流、合規、KYC 政策依 s162 上報","無證據的影響不寫成已驗證"] },
+  { code: "OP", name: "運營", nodes: ["新需求","待驗收","驗收通過","發布上線","上線後","緊急修復"], notOwns: "需求→PM、程式部署→FE/BE/PMO、客訴回覆→MK", stop: ["活動規則未經 PM 確認不上線","補償、獎金調整需 PM 或財務確認"] },
+  { code: "PMO", name: "項管", nodes: ["待決策","已定稿","已開發-測試通過","待驗收","驗收通過","發布上線","緊急修復"], notOwns: "需求→PM、實作→FE/BE、測試判定→QA", stop: ["部署分支不得為 master/main","無證據不報完成","不私自擴範圍"] },
+  { code: "MK", name: "客服", nodes: ["新需求","待驗收","驗收通過","上線後","緊急修復"], notOwns: "補償決定→PM/財務、帳戶限制→風控、修復→FE/BE", stop: ["不承諾補償或到帳時間","不透露風控判斷","不索取密碼"] },
+  { code: "QA", name: "測試", nodes: ["已開發-測試通過","上線後","緊急修復"], notOwns: "需求驗收標準→PM、修復→FE/BE、發布決策→PMO", stop: ["抽樣不報 100%","無證據案例不算通過","設計評分依序 1→2→3→4，前一步未過不進下一步"] },
+  { code: "FE", name: "前端", nodes: ["已定稿","已開發-測試通過","緊急修復"], notOwns: "需求→PM、視覺規範→DE、API 資料→BE、部署→DO", stop: ["不自改需求或視覺規範","原始碼唯讀只改副本","不開單一需求分支"] },
+  { code: "BE", name: "後端", nodes: ["已定稿","已開發-測試通過","發布上線","緊急修復"], notOwns: "需求→PM、介面呈現→FE、發布時程→PMO、正式部署→DO", stop: ["金額、結算變更必附回滾與對帳","不直接在 master/main 部署","不開單一需求分支"] },
+  { code: "DE", name: "設計", nodes: ["新需求","待決策","已定稿","開發後"], notOwns: "需求範圍→PM、實作→FE", stop: ["不擴大需求範圍","競品參考標來源與日期"] },
+  { code: "DO", name: "維運", nodes: ["已定稿","已開發-測試通過","驗收通過","發布上線","上線後","緊急修復"], notOwns: "需求→PM、程式修復→FE/BE、發布時程→PMO、資安放行→SEC", stop: ["不直接部署 master/main","回滾未就緒不上線","管線失敗不跳關"] },
+  { code: "SEC", name: "資安合規", nodes: ["已定稿","已開發-測試通過","發布上線","緊急修復"], notOwns: "業務合規文案→PM、修復→FE/BE、部署→DO、風控策略→PM", stop: ["高風險未緩解不放行","豁免須寫明理由、期限、負責人","不臆測法規適用"] }
+];
+const matrixCols = [["新需求",1],["待決策",1],["已定稿",1],["已開發-測試通過",2],["開發後","x"],["待驗收",3],["驗收通過",3],["發布上線",3],["上線後","x"],["緊急修復","h"]];
+
+/* ===== 圖 ===== */
+const svgLayers = `<svg viewBox="0 0 900 330" role="img" aria-label="三層結構">${defs}
+  ${[["L1 工作流","L1-workflow.yaml・L1-chain.md",["9 個節點、7 個階段、6 條分支","含 Hotfix 快速通道"],30,"--l1"],
+     ["L2 角色","L2-roles/<代碼>.yaml",["10 個角色","各節點的任務與對應技能"],130,"--l2"],
+     ["L3 技能","L3-skills/s0～s9（由 src/ 建置）",["10 主群 → 70 次群 → 285 子技能","每份 ≤120 行"],230,"--l3"]].map(([a,b,c,y,col],i)=>`
+     <rect x="${40+i*30}" y="${y}" width="${560-i*60}" height="76" rx="4" class="box" style="stroke:var(${col})" stroke-width="3"/>
+     <text x="${60+i*30}" y="${y+32}" class="b" style="fill:var(${col});font-size:18px">${a}</text>
+     <text x="${60+i*30}" y="${y+56}" class="mono">${b}</text>
+     <text x="${640}" y="${y+34}" class="b">${["定義流程","定義誰做什麼","定義怎麼做"][i]}</text>
+     <text x="640" y="${y+56}" class="sm">${c[0]}</text>
+     <text x="640" y="${y+74}" class="sm">${c[1]}</text>
+     ${i<2?`<path d="M${300} ${y+80} V${y+96}" class="arrow" marker-end="url(#ah)"/>`:""}`).join("")}
+</svg>`;
+
+const svgCall = `<svg viewBox="0 0 1000 330" role="img" aria-label="技能呼叫路徑">${defs}
+  ${[["使用者輸入","角色代碼 + 任務","例：PM + 整理需求單",20],["SKILL.md","讀路由規則","一次一任務",215],["L2-roles/PM.yaml","依情境選節點與任務","節點：新需求",410],["L3 技能","同輪讀完任務技能","s115、s111",605],["輸出","結論附技能編號","對不到標「假設」",800]].map(([a,b,c,x],i)=>`
+    <rect x="${x}" y="60" width="175" height="96" rx="4" class="box" ${i===3?'style="stroke:var(--l3)"':i===2?'style="stroke:var(--l2)"':''} stroke-width="${i===2||i===3?3:2}"/>
+    <text x="${x+14}" y="90" class="b">${a}</text><text x="${x+14}" y="114" class="sm">${b}</text><text x="${x+14}" y="138" class="mono">${c}</text>
+    ${i<4?`<path d="M${x+179} 108 H${x+191}" class="arrow" marker-end="url(#ah)"/>`:""}`).join("")}
+  <path d="M107 160 C107 230 692 230 692 162" class="arrow" stroke-dasharray="5 6" marker-end="url(#ah)"/>
+  <text x="400" y="232" text-anchor="middle" class="sm">直接輸入技能編號（例：s532）→ 跳過 L2，直接讀 L3-skills/s5/s532.md</text>
+  <text x="692" y="40" text-anchor="middle" class="sm">次群（如 s83）只讀索引，選 1 個子技能</text>
+  <rect x="20" y="262" width="955" height="50" rx="4" class="fs"/>
+  <text x="40" y="292" class="sm">全程守則：每次 ≤2K token ・ 未列出的不讀、不展開連結 ・ 不臆造 ・ 守住角色的 not_owns（不屬於自己的工作）與 stop（停止條件）</text>
+</svg>`;
+
+function svgFlow() {
+  const pos = { "新需求":[40,140,100], "待決策":[160,140,100], "已定稿":[280,140,100], "已開發-測試通過":[430,140,160], "待驗收":[640,140,100], "驗收通過":[760,140,100], "發布上線":[880,140,100], "結案":[1010,140,100], "結案作廢":[160,262,100] };
+  const g = Object.entries(pos).map(([id,[x,y,w]]) => {
+    const n = nodes.find(v => v.id === id); const term = id.startsWith("結案");
+    return `<g class="node" tabindex="0" role="button" data-node="${id}" aria-label="${id}">
+      <rect x="${x}" y="${y}" width="${w}" height="48" rx="${term?24:3}" class="s${n.layer}" ${term?'stroke-dasharray="6 4"':''}/>
+      <text x="${x+w/2}" y="${y+29}" text-anchor="middle" class="b" style="font-size:13px">${id}</text></g>`;
+  }).join("");
+  return `<svg viewBox="0 0 1140 340" role="img" aria-label="SDLC 標準工作流">${defs}
+    <rect x="20" y="40" width="380" height="290" class="band fs" opacity=".55"/><rect x="410" y="40" width="200" height="290" class="band fs" opacity=".9"/><rect x="620" y="40" width="510" height="290" class="band fs" opacity=".55"/>
+    <text x="34" y="66" class="b" style="fill:var(--l1)">需求決策層</text><text x="424" y="66" class="b" style="fill:var(--l2)">開發測試層</text><text x="634" y="66" class="b" style="fill:var(--l3)">驗收發布層</text>
+    <path d="M142 164 H156 M262 164 H276 M382 164 H426 M592 164 H636 M742 164 H756 M862 164 H876 M982 164 H1006" class="arrow" marker-end="url(#ah)"/>
+    <text x="330" y="132" text-anchor="middle" class="mono">≥75 需開發</text>
+    <path d="M210 192 V258" class="arrow" marker-end="url(#ah)"/><text x="218" y="230" class="mono">不需開發</text>
+    <path d="M470 136 C470 92 550 92 550 136" class="arrow" marker-end="url(#ah)"/><text x="510" y="90" text-anchor="middle" class="mono">測試失敗 → 退回開發</text>
+    <text x="614" y="132" text-anchor="middle" class="mono">100% 通過</text>
+    <path d="M1060 192 V300 H90 V192" class="arrow" stroke-dasharray="5 6" marker-end="url(#ah)"/>
+    <text x="700" y="318" text-anchor="middle" class="sm">剩餘項轉成新 CR，回到新需求</text>
+    ${g}</svg>`;
+}
+
+function svgChain() {
+  const stages = ["需求發起與探索","產品設計與梳理","技術評估與架構","開發與實作","測試與品質驗證","部署與上線","監控與數據回饋"];
+  const X = i => 210 + i*140;
+  const rows = [["UI/UX 探索","DE",[0,1]],["數據埋點","PM・FE/BE・PM/OP",[1,3,6]],["基礎設施","DO",[2,3,5]],["資安與合規","SEC",[2,4,5]],["GTM 與營運準備","OP・MK",[4,5]]];
+  const main = ["PM","PM","BE/FE/PMO","FE/BE","QA/PM","DO/BE/PMO","PM"];
+  return `<svg viewBox="0 0 1150 450" role="img" aria-label="全景鏈路 7 階段與分支">${defs}
+    ${stages.map((s,i)=>`<text x="${X(i)}" y="28" text-anchor="middle" class="mono">${i+1}</text><text x="${X(i)}" y="50" text-anchor="middle" class="sm">${s}</text>`).join("")}
+    <text x="20" y="96" class="b">主鏈</text>
+    <path d="M${X(0)} 92 H${X(6)}" stroke-width="10" stroke-linecap="round" class="si" fill="none"/>
+    ${main.map((r,i)=>`<circle cx="${X(i)}" cy="92" r="11" class="fs si" stroke-width="4"/><text x="${X(i)}" y="124" text-anchor="middle" class="mono">${r}</text>`).join("")}
+    <path d="M${X(6)+16} 92 C${X(6)+40} 92 ${X(6)+40} 150 ${X(6)} 150 H${X(0)} C${X(0)-40} 150 ${X(0)-40} 92 ${X(0)-16} 92" class="arrow" stroke-dasharray="4 6" marker-end="url(#ah)" opacity=".7"/>
+    <text x="${(X(0)+X(6))/2}" y="170" text-anchor="middle" class="sm">結案後剩餘項轉新 CR，回 Backlog</text>
+    ${rows.map(([n,r,st],k)=>{ const y = 220 + k*44;
+      return `<text x="20" y="${y+5}" class="b" style="font-size:13px">${n}</text><text x="20" y="${y+22}" class="mono" style="font-size:11px">${r}</text>
+      <path d="M${X(st[0])} ${y} H${X(st[st.length-1])}" stroke-width="4" stroke-dasharray="2 8" stroke-linecap="round" class="s2" fill="none"/>
+      ${st.map(i=>`<circle cx="${X(i)}" cy="${y}" r="8" class="f2"/>`).join("")}`; }).join("")}
+  </svg>`;
+}
+
+const svgBuild = `<svg viewBox="0 0 1000 200" role="img" aria-label="建置與驗證管線">${defs}
+  ${[["src/*.md","技能草稿（唯一可改處）"],["node src/build.mjs","產生 L3、目錄、連結、超長分段"],["L3-skills/","只能由建置產生，勿直接改"],["node validate.mjs","結構、≤120 行、連結、≤2K 預算"],["node tests/run.mjs","69 個情境：路由、知識、邊界、預算"]].map(([a,b],i)=>{const x=10+i*198;
+    return `<rect x="${x}" y="40" width="180" height="90" rx="4" class="box" ${i===2?'style="stroke:var(--l3)" stroke-width="3"':''}/>
+    <text x="${x+12}" y="72" class="b mono" style="fill:var(--ink);font-size:13px">${a}</text><text x="${x+12}" y="98" class="sm">${b.slice(0,12)}</text><text x="${x+12}" y="116" class="sm">${b.slice(12)}</text>
+    ${i<4?`<path d="M${x+182} 85 H${x+196}" class="arrow" marker-end="url(#ah)"/>`:""}`;}).join("")}
+  <path d="M110 134 V170 H700 V134" class="arrow" stroke-dasharray="4 5" marker-start="url(#ah)"/>
+  <text x="405" y="190" text-anchor="middle" class="sm">建置中止或檢查失敗 → L3 保持原樣，修正草稿後重跑</text>
+</svg>`;
+
+/* ===== 元件 ===== */
+function renderTab(t) { return `<button class="tab" role="tab" id="tab-${t.id}" data-id="${t.id}"><small>${t.code}</small>${t.name}</button>`; }
+function renderList(items, kind, color) { const tag = kind === "steps" ? "ol" : "ul"; return `<${tag} class="${kind}" ${color?`style="--c:var(${color})"`:""}>${items.map(i=>`<li><span>${i}</span></li>`).join("")}</${tag}>`; }
+function renderChip(id, label, color, group) { return `<button class="chip" data-${group}="${id}" aria-pressed="false" style="--c:var(${color})">${label}</button>`; }
+function renderFigure(svg, cap) { return `<figure class="figure">${svg}<figcaption class="caption">${cap}</figcaption></figure>`; }
+
+function nodeDetail(id) {
+  const n = nodes.find(v => v.id === id); const c = layerColor[n.layer];
+  const roleTags = n.roles.map(r=>`<span class="role">${r}</span>`).join("") + n.sup.map(r=>`<span class="role sup">${r} 支援</span>`).join("");
+  return `<div class="detail" style="--c:var(${c})"><span class="stamp">L${n.layer} ・ ${["","需求決策","開發測試","驗收發布"][n.layer]}</span>
+    <h3>${n.id}</h3>${roleTags?`<div class="roles">${roleTags}</div>`:""}
+    <div class="cols">${n.confirm.length?`<div><h3 style="font-size:15px">確認事項</h3>${renderList(n.confirm,"ticks",c)}</div>`:""}
+    <div><h3 style="font-size:15px">關卡</h3><p style="margin:0">${n.gate}</p><h3 style="font-size:15px;margin-top:16px">下一節點</h3><p style="margin:0" class="mono">${n.next}</p></div></div></div>`;
+}
+function roleDetail(code) {
+  const r = roles.find(v => v.code === code);
+  return `<div class="detail" style="--c:var(--ink)"><span class="stamp">${r.code}</span><h3>${r.name}</h3>
+    <div class="cols"><div><h3 style="font-size:15px">出手的時段</h3><div class="roles">${r.nodes.map(n=>`<span class="role">${n}</span>`).join("")}</div>
+    <h3 style="font-size:15px;margin-top:16px">不屬於自己的工作（not_owns）</h3><p style="margin:0">${r.notOwns}</p></div>
+    <div><h3 style="font-size:15px">停止條件（stop）</h3>${renderList(r.stop,"ticks","--hot")}</div></div></div>`;
+}
+
+/* ===== 分頁 ===== */
+const tabs = [
+  { id: "arch", code: "00", name: "三層結構", render: () => `
+    <h2>三層結構</h2><p class="intro">技能庫分三層。L1 規定流程，L2 規定每個角色在各節點做什麼，L3 是實際的做法。呼叫時由上往下只讀需要的那幾份，不整庫掃描。</p>
+    ${renderFigure(svgLayers, "上層只指向下層，規則細節一律放在 L3")}
+    <div class="stats">${[["10","主技能群"],["70","次技能群"],["285","子技能"],["10","角色"],["9","L1 節點"],["149","任務路徑"],["1,366","平均 token／路徑"]].map(([a,b])=>`<div class="stat"><b>${a}</b><span>${b}</span></div>`).join("")}</div>
+    <div class="note" style="--c:var(--l1)">數字來自 2026-10-20 在雲端執行 <code>node validate.mjs</code> 的輸出；最長路徑 1,999 token，未超過 2,000 上限。</div>` },
+  { id: "call", code: "01", name: "呼叫路徑", render: () => `
+    <h2>呼叫路徑</h2><p class="intro">每次只處理一個任務。用角色代碼加任務，或直接輸入技能編號來呼叫。</p>
+    ${renderFigure(svgCall, "範例取自 tests/scenarios.json 的 PM01 情境")}
+    <div class="cols"><div><h3>讀取順序</h3>${renderList(["SKILL.md：看路由規則","L2-roles/<角色>.yaml：依情境選節點與任務","任務對應的 L3 技能：同一輪讀完","次群只讀索引，從中挑 1 個子技能","輸出結論，附上依據的技能編號"],"steps","--l2")}</div>
+    <div><h3>證據等級（s021）</h3>${renderList(["已驗證","推論","待定","阻塞"],"ticks","--l3")}<p class="intro" style="margin-top:8px">只有部分證據不能寫成完成；沒檢查過的狀態不視為安全。</p></div></div>
+    <div class="note" style="--c:var(--l2)"><b>真實情境：</b>「營運丟來一句『購物車要能合併結帳』，幫我整理成可以送審的需求單」→ 角色 PM → 節點 新需求 → 任務「依 Why/Where/What 建 CR」→ 技能 s115、s111。</div>` },
+  { id: "flow", code: "02", name: "SDLC 主流程", render: () => `
+    <h2>SDLC 標準工作流</h2><p class="intro">CR 是唯一入口，每張 CR 同一時間只會在一個節點。點選圖上的節點，看參與角色、確認事項與關卡。</p>
+    ${renderFigure(svgFlow(), "實框：參與角色　虛線框：終點　虛線箭頭：剩餘項回流")}
+    <div class="chips" id="nodeChips">${nodes.map(n=>renderChip(n.id,n.id,layerColor[n.layer],"node")).join("")}</div>
+    <div id="nodeDetail"></div>
+    <div class="cols"><div><h3>流程總規則</h3>${renderList(["變更請求（CR）是唯一入口","每張 CR 同一時間只處於一個節點","一個版本一條升級分支，不為單一需求開分支","Hotfix 走快速通道，事後補 CR"],"ticks","--l1")}</div>
+    <div><h3>原文已登記的流程缺口（s013）</h3>${renderList(["待驗收沒有失敗路徑 → 驗收不通過退回開發並記缺陷","迴圈節點失敗時也叫「測試通過」→ 內部分成開發中／測試中／已通過","上線後沒有驗證與回滾觸發 → 結案前執行 s954","結案沒有條件 → 補發布說明、文件更新、CR 對應版本號"],"ticks","--hot")}</div></div>` },
+  { id: "chain", code: "03", name: "全景鏈路", render: () => `
+    <h2>全景鏈路與 Hotfix</h2><p class="intro">把 9 個節點攤成 7 個階段的主鏈，旁邊有 5 條支援分支。另外有一條隨時可能觸發的緊急修復通道。</p>
+    ${renderFigure(svgChain(), "粗線：主鏈及負責角色　點線：分支在哪幾個階段出現")}
+    <div class="cols"><div style="--c:var(--hot)"><h3>Hotfix 觸發條件</h3>${renderList(["服務崩潰","無法登入、存提款、付款、投注","資損或結算錯誤","資安事件"],"ticks","--hot")}</div>
+    <div><h3>Hotfix 步驟（依序）</h3>${renderList(["PMO 宣告事故，暫停常規發布","DO 止血：回滾或關開關","FE／BE 最小變更修復","QA 快速驗證","DO 插隊發布並監控","MK／OP 對外通知","PM／PMO 補 CR，做事故檢討"],"steps","--hot")}</div></div>` },
+  { id: "roles", code: "04", name: "角色分工", render: () => `
+    <h2>角色分工</h2><p class="intro">依 L2 角色檔整理，圓點代表該角色在這個時段有任務。點一列看它的邊界與停止條件。</p>
+    <div class="table-wrap"><table><thead><tr><th>角色</th>${matrixCols.map(([n,l])=>`<th class="colhead-${l==="h"?"x":l}">${n}</th>`).join("")}</tr></thead>
+    <tbody>${roles.map(r=>`<tr data-role="${r.code}" tabindex="0"><td><b class="mono">${r.code}</b> ${r.name}</td>${matrixCols.map(([n,l])=>`<td>${r.nodes.includes(n)?`<span class="dot" style="--c:var(${l==="h"?"--hot":l==="x"?"--muted":layerColor[l]})" aria-label="有任務"></span>`:""}</td>`).join("")}</tr>`).join("")}</tbody></table></div>
+    <div id="roleDetail"></div>
+    <div class="note" style="--c:var(--muted)">「開發後」「上線後」「緊急修復」不是 L1 節點，是角色檔額外定義的時段。</div>` },
+  { id: "maint", code: "05", name: "維護與學習", render: () => `
+    <h2>維護與學習閉環</h2><p class="intro">技能庫會在使用中長大。發現缺口時，先包成學習封包，經使用者確認才寫入，再跑建置與測試。</p>
+    ${renderFigure(svgBuild, "L3-skills 只能由 build.mjs 產生")}
+    <div class="cols"><div><h3>學習閉環（s065）</h3>${renderList(["封包：寫明來源、目標、發現、證據、信心","確認：使用者確認才寫，低信心只列待確認","寫入：先搜既有規則去重","建置：node src/build.mjs","驗證：validate 與 tests 全部通過","回歸：每條新規則加 1 題測試","回報：改了哪些檔、測試前後結果、仍屬假設的部分"],"steps","--l1")}</div>
+    <div><h3>什麼時候觸發</h3>${renderList(["上線後檢討","缺陷根因","使用者糾正","實測時標成「假設」的缺口","同類缺口連續出現 2 次 → 優先寫入"],"ticks","--l1")}
+    <h3 style="margin-top:16px">對話容量（s035）</h3>${renderList(["206K：預警，不接新範圍","232K：立即拆分對話","拆分前先寫檢查點，交接不等於完成"],"ticks","--l2")}</div></div>
+    <div class="note" style="--c:var(--l1)"><b>目前測試結果（2026-10-20 雲端執行）：</b>場景 69 ・ 路由 69/69 ・ 知識 125/125 ・ 邊界 11/11 ・ 預算 69/69，全部 100%。</div>` }
+];
+
+const tabsEl = document.getElementById("tabs"), panelEl = document.getElementById("panel");
+tabsEl.innerHTML = tabs.map(renderTab).join("");
+
+function selectNode(id) {
+  panelEl.querySelectorAll("[data-node]").forEach(e => { const on = e.dataset.node === id; e.classList.toggle("on", on); if (e.classList.contains("chip")) e.setAttribute("aria-pressed", on); });
+  document.getElementById("nodeDetail").innerHTML = nodeDetail(id);
+}
+function selectRole(code) {
+  panelEl.querySelectorAll("tr[data-role]").forEach(e => e.classList.toggle("on", e.dataset.role === code));
+  document.getElementById("roleDetail").innerHTML = roleDetail(code);
+}
+function show(id) {
+  const t = tabs.find(x => x.id === id) || tabs[0];
+  tabsEl.querySelectorAll(".tab").forEach(b => b.setAttribute("aria-selected", b.dataset.id === t.id));
+  panelEl.innerHTML = `<section class="panel" role="tabpanel" aria-labelledby="tab-${t.id}">${t.render()}</section>`;
+  if (t.id === "flow") selectNode("待決策");
+  if (t.id === "roles") selectRole("PM");
+  try { history.replaceState(null, "", "#" + t.id); } catch (e) {}
+}
+tabsEl.addEventListener("click", e => { const b = e.target.closest(".tab"); if (b) show(b.dataset.id); });
+panelEl.addEventListener("click", e => {
+  const n = e.target.closest("[data-node]"); if (n) return selectNode(n.dataset.node);
+  const r = e.target.closest("tr[data-role]"); if (r) selectRole(r.dataset.role);
+});
+panelEl.addEventListener("keydown", e => {
+  if (e.key !== "Enter" && e.key !== " ") return;
+  const n = e.target.closest("g[data-node]"), r = e.target.closest("tr[data-role]");
+  if (n) { e.preventDefault(); selectNode(n.dataset.node); } else if (r) { e.preventDefault(); selectRole(r.dataset.role); }
+});
+show(location.hash.slice(1));
+</script>
+</body>
+</html>
